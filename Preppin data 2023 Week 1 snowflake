@@ -1,0 +1,55 @@
+WITH Base_table AS (
+    SELECT 
+        SPLIT_PART(CAST(TRANSACTION_CODE AS STRING), '-', 1) AS Bank,
+        CASE 
+            WHEN ONLINE_OR_IN_PERSON = 1 THEN 'Online'
+            WHEN ONLINE_OR_IN_PERSON = 2 THEN 'In Person'
+        END AS online_or_in_person,
+        CASE 
+            WHEN DAYOFWEEK(TO_DATE(SPLIT_PART(transaction_date, ' ', 1), 'DD/MM/YYYY')) = 1 THEN 'Sunday'
+            WHEN DAYOFWEEK(TO_DATE(SPLIT_PART(transaction_date, ' ', 1), 'DD/MM/YYYY')) = 2 THEN 'Monday'
+            WHEN DAYOFWEEK(TO_DATE(SPLIT_PART(transaction_date, ' ', 1), 'DD/MM/YYYY')) = 3 THEN 'Tuesday'
+            WHEN DAYOFWEEK(TO_DATE(SPLIT_PART(transaction_date, ' ', 1), 'DD/MM/YYYY')) = 4 THEN 'Wednesday'
+            WHEN DAYOFWEEK(TO_DATE(SPLIT_PART(transaction_date, ' ', 1), 'DD/MM/YYYY')) = 5 THEN 'Thursday'
+            WHEN DAYOFWEEK(TO_DATE(SPLIT_PART(transaction_date, ' ', 1), 'DD/MM/YYYY')) = 6 THEN 'Friday'
+            WHEN DAYOFWEEK(TO_DATE(SPLIT_PART(transaction_date, ' ', 1), 'DD/MM/YYYY')) = 7 THEN 'Saturday'
+        END AS transaction_day,
+        value,
+        customer_code
+    FROM 
+        TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK01
+),
+By_bank AS (
+    SELECT 
+        SUM(value) AS total_value,
+        bank
+    FROM 
+        Base_table
+    GROUP BY 
+        bank
+),
+By_bank_day_transaction AS (
+    SELECT 
+        SUM(value) AS total_value,
+        transaction_day,
+        online_or_in_person
+    FROM 
+        Base_table
+    GROUP BY 
+        transaction_day,
+        online_or_in_person
+),
+By_bank_customer AS (
+    SELECT 
+        SUM(value) AS total_value,
+        bank,
+        customer_code
+    FROM 
+        Base_table
+    GROUP BY 
+        bank, 
+        customer_code
+)
+SELECT * FROM By_bank;
+SELECT * FROM By_bank_day_transaction;
+SELECT * FROM By_bank_customer;
