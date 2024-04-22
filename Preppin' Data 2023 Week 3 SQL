@@ -1,0 +1,58 @@
+--https://preppindata.blogspot.com/2023/01/2023-week-3-targets-for-dsb.html
+
+WITH Base_table AS (
+    SELECT 
+        SPLIT_PART(CAST(TRANSACTION_CODE AS STRING), '-', 1) AS Bank,
+        CASE 
+            WHEN ONLINE_OR_IN_PERSON = 1 THEN 'Online'
+            WHEN ONLINE_OR_IN_PERSON = 2 THEN 'In-Person'
+            ELSE NULL -- Add an ELSE clause to handle other cases
+        END AS online_or_in_person,
+        DATE_PART(QUARTER, TO_DATE(SPLIT_PART(transaction_date, ' ', 1), 'DD/MM/YYYY')) AS quarter,
+        value,
+        customer_code
+    FROM 
+        TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK01
+        where Bank = 'DSB'
+),
+aggregated_table AS (
+    SELECT 
+        ONLINE_OR_IN_PERSON,
+        quarter,
+        SUM(value) AS total_value
+    FROM 
+        Base_table
+    GROUP BY 
+        ONLINE_OR_IN_PERSON,
+        quarter
+),
+TARGETS AS (
+    SELECT * 
+    FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK03_TARGETS
+    UNPIVOT (
+        value FOR quarter IN (Q1, Q2, Q3, Q4)
+    ) AS unpivoted_table
+),
+QUARTER_PIVOTED AS (
+    SELECT 
+        TO_NUMBER(REGEXP_REPLACE(quarter,'Q','')) AS QUARTER,
+        value AS Quarterly_Target,
+        ONLINE_OR_IN_PERSON
+    FROM 
+        TARGETS
+),
+FINAL_TABLE AS (
+    SELECT 
+        a.ONLINE_OR_IN_PERSON,
+        a.total_value AS value,
+        qp.Quarterly_Target,
+        (qp.Quarterly_Target - a.total_value) AS Variance_to_Target
+    FROM 
+        aggregated_table a
+    LEFT JOIN 
+        QUARTER_PIVOTED qp 
+    ON 
+        a.quarter = qp.QUARTER AND a.online_or_in_person = qp.ONLINE_OR_IN_PERSON
+)
+
+SELECT * FROM FINAL_TABLE;
