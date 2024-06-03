@@ -1,0 +1,96 @@
+Prepping data 2023 week 6
+
+https://preppindata.blogspot.com/2023/02/2023-week-6-dsb-customer-ratings.html
+
+Requirements
+Input the data
+Reshape the data so we have 5 rows for each customer, with responses for the Mobile App and Online Interface being in separate fields on the same row
+Clean the question categories so they don't have the platform in from of them
+e.g. Mobile App - Ease of Use should be simply Ease of Use
+Exclude the Overall Ratings, these were incorrectly calculated by the system
+Calculate the Average Ratings for each platform for each customer 
+Calculate the difference in Average Rating between Mobile App and Online Interface for each customer
+Catergorise customers as being:
+Mobile App Superfans if the difference is greater than or equal to 2 in the Mobile App's favour
+Mobile App Fans if difference >= 1
+Online Interface Fan
+Online Interface Superfan
+Neutral if difference is between 0 and 1
+Calculate the Percent of Total customers in each category, rounded to 1 decimal place
+Output the data
+
+
+
+
+WITH First_Unpivot AS (
+    SELECT Customer_ID, category_mobile, rating
+    FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK06_DSB_CUSTOMER_SURVEY
+    UNPIVOT (
+        rating FOR category_mobile IN (
+            MOBILE_APP___EASE_OF_USE,
+            MOBILE_APP___EASE_OF_ACCESS,
+            MOBILE_APP___NAVIGATION,
+            MOBILE_APP___LIKELIHOOD_TO_RECOMMEND
+            
+        )
+    )
+),
+Second_Unpivot AS (
+    SELECT Customer_ID, category_online, rating
+    FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK06_DSB_CUSTOMER_SURVEY
+    UNPIVOT (
+        rating FOR category_online IN (
+            ONLINE_INTERFACE___EASE_OF_USE,
+            ONLINE_INTERFACE___EASE_OF_ACCESS,
+            ONLINE_INTERFACE___NAVIGATION,
+            ONLINE_INTERFACE___LIKELIHOOD_TO_RECOMMEND
+            
+        )
+    )
+),
+Joined_table as(
+SELECT 
+F.Customer_ID,
+REPLACE(category_mobile,'MOBILE_APP___','') as category,
+F.rating as Mobile,
+S.rating as Online
+from first_unpivot F
+LEFT JOIN second_unpivot S
+on F.Customer_ID=S.Customer_ID
+AND REPLACE(category_mobile,'MOBILE_APP___','')=REPLACE(category_online,'ONLINE_INTERFACE___','')),
+Average_rating as (
+select
+customer_id,
+avg (Mobile)   as Avg_mobile_per_customer,
+avg (Online)  as Avg_online_per_customer
+from joined_table
+group by customer_id
+),
+Rating_difference as(
+select 
+(Avg_mobile_per_customer)-(Avg_online_per_customer) as Avg_rating_difference,
+customer_id
+ from 
+average_rating),
+Ratings_category as(
+select 
+customer_id,
+(case when Avg_rating_difference >=2 then 'Mobile_app_superfans'
+when Avg_rating_difference >=1 then 'Mobile_app_fans'
+when Avg_rating_difference<=-1 then 'Online_interface_fan'
+when Avg_rating_difference <=-2 then 'Online_interface_superfan'
+else 'Neutral' end) as Preference,
+avg_rating_difference
+
+from rating_difference 
+), 
+
+percentage_table AS (
+    SELECT 
+    Preference,
+    COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () AS pct_of_total
+    FROM Ratings_category
+    GROUP BY Preference
+)
+
+SELECT * FROM percentage_table;
