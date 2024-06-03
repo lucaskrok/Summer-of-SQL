@@ -1,0 +1,62 @@
+https://preppindata.blogspot.com/2023/02/2023-week-5-dsb-ranking.html
+
+Requirements
+Input data
+Create the bank code by splitting out off the letters from the Transaction code, call this field 'Bank'
+Change transaction date to the just be the month of the transaction
+Total up the transaction values so you have one row for each bank and month combination
+Rank each bank for their value of transactions each month against the other banks. 1st is the highest value of transactions, 3rd the lowest. 
+Without losing all of the other data fields, find:
+The average rank a bank has across all of the months, call this field 'Avg Rank per Bank'
+The average transaction value per rank, call this field 'Avg Transaction Value per Rank'
+Output the data
+
+
+SQL script: 
+With base_table as(
+select *,
+replace(substr(transaction_code,1,3),'-','') as Bank,
+DATE_PART(month, TO_TIMESTAMP(transaction_date, 'DD/MM/YYYY HH24:MI:SS')) as Transaction_month
+
+from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK01),
+
+Aggregated_table as(
+select 
+sum(value) as sum_value,
+Bank,
+Transaction_month
+from base_table
+group by Bank, Transaction_month
+),
+
+Ranked_table as
+(
+SELECT 
+BANK,
+Transaction_month,
+sum_value,
+rank() over (PARTITION BY Transaction_month order by sum_value DESC) as rank_per_month
+from Aggregated_table
+),
+avg_table AS (
+    SELECT
+    Bank,
+    Transaction_month,
+    AVG(rank_per_month) OVER (PARTITION BY Bank) AS Avg_Rank_per_Bank,
+    AVG(sum_value) OVER (PARTITION BY rank_per_month) AS Avg_Transaction_value_per_Rank
+    FROM Ranked_table
+)
+SELECT 
+a.transaction_month,
+a.Bank,
+sum_value as Value,
+rank_per_month,
+Avg_Transaction_value_per_Rank,
+Avg_Rank_per_Bank
+
+
+FROM avg_table a
+LEFT JOIN Ranked_table r 
+ON a.Bank = r.Bank 
+AND a.Transaction_month = r.Transaction_month
+ORDER BY transaction_month, rank_per_month
