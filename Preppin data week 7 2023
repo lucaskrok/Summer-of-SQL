@@ -1,0 +1,105 @@
+https://preppindata.blogspot.com/2023/02/2023-week-7-flagging-fraudulent.html
+
+Requirements
+Input the data
+For the Transaction Path table:
+Make sure field naming convention matches the other tables
+i.e. instead of Account_From it should be Account From
+For the Account Information table:
+Make sure there are no null values in the Account Holder ID
+Ensure there is one row per Account Holder ID
+Joint accounts will have 2 Account Holders, we want a row for each of them
+For the Account Holders table:
+Make sure the phone numbers start with 07
+Bring the tables together
+Filter out cancelled transactions 
+Filter to transactions greater than £1,000 in value 
+Filter out Platinum accounts
+Output the data
+
+With Transaction_path as(
+select 
+TRANSACTION_ID,
+ACCOUNT_TO,
+ACCOUNT_FROM AS "Account From"
+from
+TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_TRANSACTION_PATH
+),
+Account_information AS (
+    SELECT 
+        ACCOUNT_NUMBER,
+        ACCOUNT_TYPE,
+        TRIM(VALUE) AS ACCOUNT_HOLDER_ID,
+        BALANCE_DATE,
+        BALANCE
+    FROM 
+        TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_ACCOUNT_INFORMATION,
+        LATERAL FLATTEN(INPUT => SPLIT(account_holder_id, ','))
+    WHERE account_holder_id IS NOT NULL
+),
+Account_holders as(
+select 
+ACCOUNT_HOLDER_ID,
+NAME,
+DATE_OF_BIRTH,
+LPAD(contact_number::STRING, 11, '0') AS CONTACT_NUMBER,
+FIRST_LINE_OF_ADDRESS
+from
+TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_ACCOUNT_HOLDERS
+),
+Accounts_joined as (
+Select 
+H.ACCOUNT_HOLDER_ID,
+NAME,
+ACCOUNT_NUMBER,
+DATE_OF_BIRTH,
+CONTACT_NUMBER,
+FIRST_LINE_OF_ADDRESS,
+ACCOUNT_TYPE,
+BALANCE_DATE,
+BALANCE
+FROM ACCOUNT_HOLDERS H
+LEFT JOIN ACCOUNT_INFORMATION I
+ON H.ACCOUNT_HOLDER_ID = I.ACCOUNT_HOLDER_ID
+WHERE ACCOUNT_TYPE != 'Platinum'
+),
+Transaction_joined as (
+select 
+P.TRANSACTION_ID,
+ACCOUNT_TO,
+transaction_date,
+"Account From",
+VALUE,
+CANCELLED_
+from transaction_path p
+left JOIN TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_TRANSACTION_DETAIL D
+ON P.TRANSACTION_ID = D.TRANSACTION_ID
+WHERE CANCELLED_ = 'N'
+and value > 1000)
+,
+
+
+All_joined as (
+select 
+TRANSACTION_ID,
+TRANSACTION_DATE,
+ACCOUNT_TO,
+VALUE,
+ACCOUNT_NUMBER,
+ACCOUNT_TYPE,
+BALANCE_DATE,
+BALANCE,
+NAME,
+DATE_OF_BIRTH,
+CONTACT_NUMBER,
+FIRST_LINE_OF_ADDRESS
+FROM Accounts_joined
+INNER JOIN Transaction_joined
+ON ACCOUNT_NUMBER = "Account From"
+)
+SELECT *FROM ALL_JOINED
+
+
+
+
+
